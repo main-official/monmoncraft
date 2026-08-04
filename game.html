@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft 2-Player - Game</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body class="game-body">
+    <div id="gameContainer"></div>
+    
+    <div class="hud">
+        <div class="player-info">
+            <span id="playerName"></span>
+            <span id="coordinates"></span>
+        </div>
+        <div class="hotbar">
+            <div id="hotbarItems"></div>
+        </div>
+        <div id="multiplayer-status">
+            <p id="otherPlayerStatus">Waiting for other player...</p>
+        </div>
+    </div>
+
+    <div id="chatBox" class="chat-box">
+        <div id="messages"></div>
+        <input type="text" id="chatInput" placeholder="Press T to chat..." maxlength="100">
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/blocks.js"></script>
+    <script src="js/terrain.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/multiplayer.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
