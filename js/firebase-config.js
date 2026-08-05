@@ -10,7 +10,7 @@
 // (see README.md for the exact rules to paste in).
 // ---------------------------------------------------------------------------
 
-const firebaseConfig = {
+const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBEE29i-ms9vwuFGeeZ1BgO49n_CbVyp-U",
   authDomain: "moncraft-f82b2.firebaseapp.com",
   projectId: "moncraft-f82b2",
