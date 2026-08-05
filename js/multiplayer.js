@@ -13,10 +13,27 @@ class Multiplayer {
     this.username = null;
     this.color = null;
     this.ready = false;
-    this.onRemoteBlock = null;     // (x,y,z,id) => void
+    this._onRemoteBlock = null;     // (x,y,z,id) => void
     this.onRemotePlayer = null;    // (username, data) => void
     this.onRemotePlayerLeft = null; // (username) => void
     this._lastSent = 0;
+    this._blockCache = new Map();  // Caches blocks received before world is ready
+  }
+
+  // Getter and Setter for onRemoteBlock to flush cached blocks when assigned
+  get onRemoteBlock() {
+    return this._onRemoteBlock;
+  }
+
+  set onRemoteBlock(callback) {
+    this._onRemoteBlock = callback;
+    if (callback && this._blockCache.size > 0) {
+      // Replay all saved world blocks into the game world as soon as it's ready
+      for (const [key, id] of this._blockCache.entries()) {
+        const [x, y, z] = key.split('_').map(Number);
+        callback(x, y, z, id);
+      }
+    }
   }
 
   isConfigured() {
@@ -32,7 +49,7 @@ class Multiplayer {
     return true;
   }
 
-  // Atomically claim a username; resolves {ok:true} or {ok:false, reason}[cite: 10]
+  // Atomically claim a username; resolves {ok:true} or {ok:false, reason}
   async claimUsername(username, allowedUsers) {
     if (!allowedUsers.includes(username)) {
       return { ok: false, reason: 'That username is not recognized.' };
@@ -84,30 +101,20 @@ class Multiplayer {
 
   _listenBlocks() {
     const ref = this.db.ref('blocks');
-    
-    // Fetch all existing persistent blocks once upon connecting
-    ref.once('value', (snapshot) => {
-      const blocks = snapshot.val();
-      if (blocks && this.onRemoteBlock) {
-        for (const [key, id] of Object.entries(blocks)) {
-          const [x, y, z] = key.split('_').map(Number);
-          this.onRemoteBlock(x, y, z, id);
-        }
-      }
-    });
-
-    // Listen for live updates
     ref.on('child_added', (snap) => this._emitBlock(snap));
     ref.on('child_changed', (snap) => this._emitBlock(snap));
     ref.on('child_removed', (snap) => {
       const [x, y, z] = snap.key.split('_').map(Number);
-      if (this.onRemoteBlock) this.onRemoteBlock(x, y, z, 0);
+      this._blockCache.delete(snap.key);
+      if (this._onRemoteBlock) this._onRemoteBlock(x, y, z, 0);
     });
   }
 
   _emitBlock(snap) {
     const [x, y, z] = snap.key.split('_').map(Number);
-    if (this.onRemoteBlock) this.onRemoteBlock(x, y, z, snap.val());
+    const id = snap.val();
+    this._blockCache.set(snap.key, id);
+    if (this._onRemoteBlock) this._onRemoteBlock(x, y, z, id);
   }
 
   _listenPlayers() {
