@@ -156,9 +156,12 @@ class PlayerController {
     if (this.keys['KeyD']) mx += 1;
     const len = Math.hypot(mx, mz);
     if (len > 0) { mx /= len; mz /= len; }
+    // Camera forward (yaw=0 looks toward -Z) is (-sin(yaw), 0, -cos(yaw)) and
+    // right is (cos(yaw), 0, -sin(yaw)); combine those with input to get the
+    // correct world-space move direction (previous cross-term signs were flipped).
     const sinY = Math.sin(this.yaw), cosY = Math.cos(this.yaw);
-    const worldX = mx * cosY - mz * sinY;
-    const worldZ = mx * sinY + mz * cosY;
+    const worldX = mx * cosY + mz * sinY;
+    const worldZ = mz * cosY - mx * sinY;
 
     this.velocity.x = worldX * MOVE_SPEED;
     this.velocity.z = worldZ * MOVE_SPEED;
