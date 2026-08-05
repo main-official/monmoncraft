@@ -22,7 +22,7 @@ class Multiplayer {
     this._playerCache = new Map(); // Caches players received before scene is ready
   }
 
-  // Getter/Setter for onRemoteBlock to flush cached blocks when assigned
+  // Getter/Setter for onRemoteBlock
   get onRemoteBlock() {
     return this._onRemoteBlock;
   }
@@ -30,14 +30,17 @@ class Multiplayer {
   set onRemoteBlock(callback) {
     this._onRemoteBlock = callback;
     if (callback && this._blockCache.size > 0) {
-      for (const [key, id] of this._blockCache.entries()) {
-        const [x, y, z] = key.split('_').map(Number);
-        callback(x, y, z, id);
-      }
+      // Defer execution slightly so main.js setup finishes first
+      setTimeout(() => {
+        for (const [key, id] of this._blockCache.entries()) {
+          const [x, y, z] = key.split('_').map(Number);
+          try { callback(x, y, z, id); } catch (e) { console.warn(e); }
+        }
+      }, 0);
     }
   }
 
-  // Getter/Setter for onRemotePlayer to flush cached players when assigned
+  // Getter/Setter for onRemotePlayer
   get onRemotePlayer() {
     return this._onRemotePlayer;
   }
@@ -45,9 +48,12 @@ class Multiplayer {
   set onRemotePlayer(callback) {
     this._onRemotePlayer = callback;
     if (callback && this._playerCache.size > 0) {
-      for (const [uname, data] of this._playerCache.entries()) {
-        callback(uname, data);
-      }
+      // Defer execution slightly so 3D player manager finishes initializing
+      setTimeout(() => {
+        for (const [uname, data] of this._playerCache.entries()) {
+          try { callback(uname, data); } catch (e) { console.warn(e); }
+        }
+      }, 0);
     }
   }
 
@@ -58,13 +64,20 @@ class Multiplayer {
 
   init() {
     if (!this.isConfigured()) return false;
-    firebase.initializeApp(FIREBASE_CONFIG);
-    this.db = firebase.database();
-    this.ready = true;
-    return true;
+    try {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(FIREBASE_CONFIG);
+      }
+      this.db = firebase.database();
+      this.ready = true;
+      return true;
+    } catch (e) {
+      console.error('Firebase init failed:', e);
+      return false;
+    }
   }
 
-  // Atomically claim a username; blocks 2nd login if active heartbeat is fresh (<10s)
+  // Atomically claim a username
   async claimUsername(username, allowedUsers) {
     if (!allowedUsers.includes(username)) {
       return { ok: false, reason: 'That username is not recognized.' };
@@ -74,9 +87,12 @@ class Multiplayer {
     }
     const ref = this.db.ref(`activeUsers/${username}`);
     const result = await ref.transaction((current) => {
-      // Abort if another tab/player is actively sending heartbeats (<10 seconds old)
-      if (current && current.online && current.claimedAt && (Date.now() - current.claimedAt < 10000)) {
-        return; 
+      // Safely handle missing claimedAt timestamps from legacy data
+      if (current && current.online) {
+        const lastSeen = current.claimedAt || 0;
+        if (Date.now() - lastSeen < 10000) {
+          return; // Abort - user is actively playing
+        }
       }
       return { online: true, claimedAt: Date.now() };
     });
@@ -88,12 +104,7 @@ class Multiplayer {
     this.username = username;
     ref.onDisconnect().remove();
 
-    // Start background heartbeat every 3s so standing still keeps the account locked
     this._startHeartbeat();
-
-    // Clean up immediately when the user closes or refreshes the tab
-    window.addEventListener('beforeunload', () => this.leave());
-
     this._listenPlayers();
     this._listenBlocks();
     return { ok: true };
@@ -102,8 +113,8 @@ class Multiplayer {
   _startHeartbeat() {
     this._stopHeartbeat();
     this._heartbeatTimer = setInterval(() => {
-      if (this.ready && this.username) {
-        this.db.ref(`activeUsers/${this.username}`).update({ claimedAt: Date.now() });
+      if (this.ready && this.username && this.db) {
+        this.db.ref(`activeUsers/${this.username}`).update({ claimedAt: Date.now() }).catch(() => {});
       }
     }, 3000);
   }
