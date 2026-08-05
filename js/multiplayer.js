@@ -32,7 +32,7 @@ class Multiplayer {
     return true;
   }
 
-  // Atomically claim a username; resolves {ok:true} or {ok:false, reason}
+  // Atomically claim a username; resolves {ok:true} or {ok:false, reason}[cite: 10]
   async claimUsername(username, allowedUsers) {
     if (!allowedUsers.includes(username)) {
       return { ok: false, reason: 'That username is not recognized.' };
@@ -84,6 +84,19 @@ class Multiplayer {
 
   _listenBlocks() {
     const ref = this.db.ref('blocks');
+    
+    // Fetch all existing persistent blocks once upon connecting
+    ref.once('value', (snapshot) => {
+      const blocks = snapshot.val();
+      if (blocks && this.onRemoteBlock) {
+        for (const [key, id] of Object.entries(blocks)) {
+          const [x, y, z] = key.split('_').map(Number);
+          this.onRemoteBlock(x, y, z, id);
+        }
+      }
+    });
+
+    // Listen for live updates
     ref.on('child_added', (snap) => this._emitBlock(snap));
     ref.on('child_changed', (snap) => this._emitBlock(snap));
     ref.on('child_removed', (snap) => {
