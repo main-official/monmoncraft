@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Voxel world: block ids, biome + heightmap terrain generation, tree placement,
-// and per-chunk mesh construction with face culling (only exposed faces drawn).
+// and per-chunk mesh construction with face culling (only exposed faces drawn)[cite: 11].
 // ---------------------------------------------------------------------------
 
 const BLOCK = {
@@ -11,8 +11,8 @@ const BLOCK = {
 
 const BIOME = { OCEAN: 0, GRASSLAND: 1, FOREST: 2, JUNGLE: 3 };
 
-const WORLD_SIZE = 128;      // blocks along X and Z
-const CHUNK = 16;            // chunk size in blocks
+const WORLD_SIZE = 128;      // blocks along X and Z[cite: 11]
+const CHUNK = 16;            // chunk size in blocks[cite: 11]
 const CHUNKS_PER_SIDE = WORLD_SIZE / CHUNK;
 const SEA_LEVEL = 32;
 const MAX_HEIGHT = 64;
@@ -28,9 +28,9 @@ class World {
 
     this.height = new Int16Array(WORLD_SIZE * WORLD_SIZE);
     this.biome = new Uint8Array(WORLD_SIZE * WORLD_SIZE);
-    // sparse overrides: "x,y,z" -> blockId (including 0 for removed/air)
+    // sparse overrides: "x,y,z" -> blockId (including 0 for removed/air)[cite: 11]
     this.overrides = new Map();
-    // per-column tree top blocks precomputed at gen time, baked as overrides
+    // per-column tree top blocks precomputed at gen time, baked as overrides[cite: 11]
     this._generateHeightAndBiomes();
     this._generateTrees();
   }
@@ -43,7 +43,7 @@ class World {
     for (let x = 0; x < WORLD_SIZE; x++) {
       for (let z = 0; z < WORLD_SIZE; z++) {
         const nx = x / WORLD_SIZE - 0.5, nz = z / WORLD_SIZE - 0.5;
-        // continent-scale shaping so the world has real ocean + inland areas
+        // continent-scale shaping so the world has real ocean + inland areas[cite: 11]
         const continental = this.heightNoise.fbm(nx * 1.4, nz * 1.4, 3, 2, 0.5);
         const detail = this.detailNoise.fbm(x * 0.06, z * 0.06, 4, 2, 0.5);
         let h = SEA_LEVEL + 7 + continental * 20 + detail * 6;
@@ -63,7 +63,7 @@ class World {
 
   _generateTrees() {
     const rand = (x, z, salt) => {
-      // deterministic pseudo-random per column so all clients agree
+      // deterministic pseudo-random per column so all clients agree[cite: 11]
       const v = Math.sin(x * 127.1 + z * 311.7 + salt * 74.7 + this.seed) * 43758.5453;
       return v - Math.floor(v);
     };
@@ -108,8 +108,10 @@ class World {
   }
 
   getBlock(x, y, z) {
-    if (y < MIN_HEIGHT || y >= MAX_HEIGHT) return BLOCK.AIR;
-    if (!this.inBounds(x, z)) return BLOCK.AIR;
+    // Return solid blocks for out-of-bounds to prevent walking/jumping off world edges or under the map
+    if (!this.inBounds(x, z) || y < MIN_HEIGHT) return BLOCK.STONE;
+    if (y >= MAX_HEIGHT) return BLOCK.AIR;
+
     const key = `${x},${y},${z}`;
     if (this.overrides.has(key)) return this.overrides.get(key);
     const h = this.height[this.idx(x, z)];
@@ -141,7 +143,7 @@ class World {
 
   heightAt(x, z) {
     if (!this.inBounds(x, z)) return SEA_LEVEL;
-    // account for player-placed towers: scan up from generated height a bit
+    // account for player-placed towers: scan up from generated height a bit[cite: 11]
     let h = this.height[this.idx(Math.floor(x), Math.floor(z))];
     for (let y = MAX_HEIGHT - 1; y > h; y--) {
       if (this.isSolid(Math.floor(x), y, Math.floor(z))) { h = y; break; }
