@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Blocky Realms — 2 Player Voxel World</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <div id="login-screen">
+    <div class="login-panel">
+      <h1>BLOCKY REALMS</h1>
+      <p class="subtitle">a 2-player voxel world</p>
+      <form id="login-form">
+        <label for="username-input">Enter your username</label>
+        <input id="username-input" type="text" autocomplete="off" placeholder="Steve or Alex" maxlength="20" required />
+        <button type="submit">Join World</button>
+      </form>
+      <p id="login-error" class="error hidden"></p>
+      <p class="hint">Only the two configured usernames may join, one player each. Closing this tab frees your username.</p>
+    </div>
+  </div>
+
+  <div id="loading-screen" class="hidden">
+    <div class="loading-box">
+      <p>Generating world…</p>
+      <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+    </div>
+  </div>
+
+  <div id="game-container"></div>
+
+  <div id="crosshair" class="hidden">+</div>
+  <div id="nametags"></div>
+
+  <div id="hud" class="hidden">
+    <div id="hotbar"></div>
+    <div id="controls-hint">
+      WASD move · Mouse look (click to lock) · Space jump · Left-click break · Right-click place · 1-9 / scroll select block
+    </div>
+  </div>
+
+  <!-- Three.js (3D engine) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Firebase (realtime username lock + multiplayer sync) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <!-- Game scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/noise.js"></script>
+  <script src="js/textures.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/multiplayer.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
