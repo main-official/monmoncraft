@@ -63,7 +63,7 @@ class Multiplayer {
     return true;
   }
 
-  // Atomically claim a username; resolves {ok:true} or {ok:false, reason}[cite: 10]
+  // Atomically claim a username; allows reconnecting if previous session is stale (>15s old)
   async claimUsername(username, allowedUsers) {
     if (!allowedUsers.includes(username)) {
       return { ok: false, reason: 'That username is not recognized.' }; //[cite: 10]
@@ -73,8 +73,11 @@ class Multiplayer {
     }
     const ref = this.db.ref(`activeUsers/${username}`); //[cite: 10]
     const result = await ref.transaction((current) => {
-      if (current && current.online) return; // abort - already taken[cite: 10]
-      return { online: true, claimedAt: Date.now() }; //[cite: 10]
+      // If user is marked online but hasn't sent a heartbeat in over 15 seconds, consider it disconnected
+      if (current && current.online && current.claimedAt && (Date.now() - current.claimedAt < 15000)) {
+        return; // abort - user is genuinely actively playing
+      }
+      return { online: true, claimedAt: Date.now() };
     });
     if (!result.committed) {
       return { ok: false, reason: `"${username}" is already being played by someone else right now.` }; //[cite: 10]
@@ -100,7 +103,12 @@ class Multiplayer {
     const now = performance.now(); //[cite: 10]
     if (now - this._lastSent < 60) return; // throttle to ~16/s[cite: 10]
     this._lastSent = now; //[cite: 10]
-    this.db.ref(`players/${this.username}`).set({ x, y, z, yaw, color: this.color, t: Date.now() }); //[cite: 10]
+    
+    const timestamp = Date.now();
+    this.db.ref(`players/${this.username}`).set({ x, y, z, yaw, color: this.color, t: timestamp }); //[cite: 10]
+    
+    // Refresh connection heartbeat so stale sessions expire after closing the tab
+    this.db.ref(`activeUsers/${this.username}`).update({ claimedAt: timestamp });
   }
 
   sendBlockChange(x, y, z, id) {
