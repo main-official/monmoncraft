@@ -24,7 +24,7 @@ class PlayerController {
     this.yaw = 0; this.pitch = 0;
     this.onGround = false;
 
-    const startY = world.heightAt(this.position.x, this.position.z) + 3;
+    const startY = world.heightAt(this.position.x, this.position.z) + 10;
     this.position.y = startY;
 
     this.keys = {};
