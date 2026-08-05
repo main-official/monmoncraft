@@ -87,7 +87,10 @@ class WorldRenderer {
       for (const v of verts) g.pos.push(v[0] + x, v[1] + y, v[2] + z);
       for (let i = 0; i < 4; i++) g.norm.push(normal[0], normal[1], normal[2]);
       g.uv.push(0, 0, 1, 0, 1, 1, 0, 1);
-      g.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      // Reversed winding (0,2,1 / 0,3,2) so each quad is CCW as seen from
+      // outside along its normal — matches THREE's default front-face (CCW)
+      // so outward faces render instead of being backface-culled.
+      g.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
       g.count += 4;
     };
 
