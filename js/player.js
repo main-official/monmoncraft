@@ -19,7 +19,10 @@ class PlayerController {
     this.renderer = renderer;
     this.dom = domElement;
 
-    this.position = new THREE.Vector3(WORLD_SIZE / 2, 0, WORLD_SIZE / 2);
+    // Spawn both players at a fixed shared origin — the world is generated
+    // deterministically from the shared seed, so (0,0) means the same terrain
+    // for both players regardless of how far anyone wanders afterward.
+    this.position = new THREE.Vector3(0, 0, 0);
     this.velocity = new THREE.Vector3();
     this.yaw = 0; this.pitch = 0;
     this.onGround = false;
