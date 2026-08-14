@@ -52,6 +52,7 @@
         case BLOCK.DIRT: c = T.dirt(); break;
         case BLOCK.STONE: c = T.stone(); break;
         case BLOCK.SAND: c = T.sand(); break;
+        case BLOCK.WATER: c = T.water(); break;
         case BLOCK.OAK_LOG: c = T.logTop(); break;
         case BLOCK.OAK_LEAVES: c = T.leaves([58, 122, 46]); break;
         case BLOCK.PLANKS: c = T.planks(); break;
