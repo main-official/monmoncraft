@@ -28,7 +28,7 @@ class PlayerController {
     this.position.y = startY;
 
     this.keys = {};
-    this.hotbar = [BLOCK.GRASS, BLOCK.DIRT, BLOCK.STONE, BLOCK.SAND, BLOCK.WATER, BLOCK.OAK_LEAVES, BLOCK.PLANKS, BLOCK.JUNGLE_LOG, BLOCK.JUNGLE_LEAVES];
+    this.hotbar = [BLOCK.GRASS, BLOCK.DIRT, BLOCK.STONE, BLOCK.SAND, BLOCK.OAK_LOG, BLOCK.OAK_LEAVES, BLOCK.PLANKS, BLOCK.JUNGLE_LOG, BLOCK.JUNGLE_LEAVES];
     this.selected = 0;
 
     this._bindEvents();
