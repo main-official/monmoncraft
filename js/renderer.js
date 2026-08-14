@@ -130,6 +130,33 @@ class WorldRenderer {
     const x0 = cx * CHUNK, z0 = cz * CHUNK;
     const world = this.world;
 
+    // --- Fetch every block this chunk could need exactly once -------------
+    // A chunk build needs the chunk's own CHUNK x CHUNK x (MAX_HEIGHT-MIN_
+    // HEIGHT) blocks, plus a 1-block margin on every side for face-culling
+    // neighbor checks. Instead of calling world.getBlock() (a string-keyed
+    // Map lookup) up to 7x per voxel during the main loop below, we pull
+    // everything into a flat local Uint8Array once here, then do all the
+    // neighbor lookups against that array. That turns a chunk build from
+    // up to ~70k+ Map lookups into a fixed ~20.7k array reads/writes, which
+    // keeps even several chunks built in one frame cheap and stutter-free.
+    const SX = CHUNK + 2, SY = (MAX_HEIGHT - MIN_HEIGHT) + 2, SZ = CHUNK + 2;
+    const strideX = SY * SZ, strideY = SZ;
+    const blocks = new Uint8Array(SX * SY * SZ);
+    for (let lx = 0; lx < SX; lx++) {
+      const x = x0 - 1 + lx;
+      const xBase = lx * strideX;
+      for (let lz = 0; lz < SZ; lz++) {
+        const z = z0 - 1 + lz;
+        const base = xBase + lz;
+        for (let ly = 0; ly < SY; ly++) {
+          const y = MIN_HEIGHT - 1 + ly;
+          blocks[base + ly * strideY] = world.getBlock(x, y, z);
+        }
+      }
+    }
+    // local-array id lookup: lx/ly/lz are already offset by the +1 margin
+    const localId = (lx, ly, lz) => blocks[lx * strideX + lz + ly * strideY];
+
     const addFace = (mi, verts, normal, x, y, z) => {
       const g = getGroup(mi);
       const base = g.count;
@@ -155,15 +182,18 @@ class WorldRenderer {
     for (let lx = 0; lx < CHUNK; lx++) {
       for (let lz = 0; lz < CHUNK; lz++) {
         const x = x0 + lx, z = z0 + lz;
+        // +1 to account for the margin column added to the local array
+        const alx = lx + 1, alz = lz + 1;
         for (let y = MIN_HEIGHT; y < MAX_HEIGHT; y++) {
-          const id = world.getBlock(x, y, z);
+          const aly = y - MIN_HEIGHT + 1;
+          const id = localId(alx, aly, alz);
           if (id === BLOCK.AIR) continue;
           const isWater = id === BLOCK.WATER;
           const fm = this._faceMats(id);
           const neighbors = {
-            px: world.getBlock(x + 1, y, z), nx: world.getBlock(x - 1, y, z),
-            py: world.getBlock(x, y + 1, z), ny: world.getBlock(x, y - 1, z),
-            pz: world.getBlock(x, y, z + 1), nz: world.getBlock(x, y, z - 1)
+            px: localId(alx + 1, aly, alz), nx: localId(alx - 1, aly, alz),
+            py: localId(alx, aly + 1, alz), ny: localId(alx, aly - 1, alz),
+            pz: localId(alx, aly, alz + 1), nz: localId(alx, aly, alz - 1)
           };
           for (const dir of Object.keys(FACES)) {
             const nb = neighbors[dir];
