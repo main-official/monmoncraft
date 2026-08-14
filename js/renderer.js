@@ -10,6 +10,9 @@ class WorldRenderer {
     this.scene = scene;
     this.world = world;
     this.chunkMeshes = new Map(); // "cx,cz" -> {mesh}
+    this._loadQueue = [];         // [[cx,cz], ...] chunks waiting to be built
+    this._queuedSet = new Set();  // "cx,cz" strings currently in _loadQueue
+    this._initialized = false;
     this._buildMaterials();
   }
 
@@ -72,15 +75,37 @@ class WorldRenderer {
         wanted.add(`${pcx + dx},${pcz + dz}`);
       }
     }
-    // load anything wanted but not yet loaded
-    for (const key of wanted) {
-      if (this.chunkMeshes.has(key)) continue;
-      const [cx, cz] = key.split(',').map(Number);
-      this.loadChunk(cx, cz);
-    }
-    // unload anything loaded but no longer wanted (with a little hysteresis
-    // margin so chunks right at the edge don't thrash in/out every frame)
+
+    // Drop anything queued-but-not-yet-built if the player has since moved
+    // away from it, so a quick teleport/sprint doesn't leave a stale backlog.
     const margin = renderDistanceChunks + 2;
+    this._loadQueue = this._loadQueue.filter(([cx, cz]) => {
+      const dx = cx - pcx, dz = cz - pcz;
+      const keep = dx * dx + dz * dz <= margin * margin;
+      if (!keep) this._queuedSet.delete(`${cx},${cz}`);
+      return keep;
+    });
+
+    // Queue anything wanted but not yet loaded (built gradually in
+    // processLoadQueue, a few per frame, instead of all at once — that's
+    // what avoids a stutter every time you cross into new terrain).
+    for (const key of wanted) {
+      if (this.chunkMeshes.has(key) || this._queuedSet.has(key)) continue;
+      const [cx, cz] = key.split(',').map(Number);
+      // First-ever load: build a small ring around spawn synchronously so
+      // the player doesn't spawn floating above an empty void — everything
+      // beyond that still streams in gradually via the queue.
+      if (!this._initialized) {
+        const dx = cx - pcx, dz = cz - pcz;
+        if (dx * dx + dz * dz <= 4) { this.loadChunk(cx, cz); continue; }
+      }
+      this._loadQueue.push([cx, cz]);
+      this._queuedSet.add(key);
+    }
+    this._initialized = true;
+
+    // unload anything loaded but no longer wanted (cheap — just frees a
+    // mesh/geometry; world.overrides is untouched, so edits are preserved)
     for (const key of [...this.chunkMeshes.keys()]) {
       if (wanted.has(key)) continue;
       const [cx, cz] = key.split(',').map(Number);
@@ -88,6 +113,20 @@ class WorldRenderer {
       if (dx * dx + dz * dz > margin * margin) this.unloadChunk(cx, cz);
     }
     return [pcx, pcz];
+  }
+
+  // Builds up to `maxPerFrame` queued chunks. Call this once per animation
+  // frame — it's what spreads the load-in cost across many frames instead
+  // of freezing the tab while a burst of new terrain streams in.
+  processLoadQueue(maxPerFrame = 3) {
+    let n = 0;
+    while (this._loadQueue.length && n < maxPerFrame) {
+      const [cx, cz] = this._loadQueue.shift();
+      const key = `${cx},${cz}`;
+      this._queuedSet.delete(key);
+      if (!this.chunkMeshes.has(key)) this.loadChunk(cx, cz);
+      n++;
+    }
   }
 
   loadChunk(cx, cz) {
@@ -198,6 +237,7 @@ class WorldRenderer {
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(allNorm, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(allUv, 2));
     geo.setIndex(allIdx);
+    geo.computeBoundingSphere(); // explicit, so frustum culling never depends on lazy defaults
 
     const mesh = new THREE.Mesh(geo, matArray);
     mesh.name = `chunk_${key}`;
@@ -205,12 +245,21 @@ class WorldRenderer {
     this.chunkMeshes.set(key, { mesh });
   }
 
+  // Only rebuilds the chunk(s) that could actually show a visual change.
+  // An edit strictly inside a chunk only ever affects that one chunk's
+  // mesh; only edits sitting on a chunk's edge can expose/hide a face in
+  // the neighboring chunk, so only touch neighbors in that case.
   rebuildAround(x, z) {
     const [cx, cz] = this.world.chunkCoord(x, z);
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
-        this.rebuildChunk(cx + dx, cz + dz);
-      }
+    const lx = ((x % CHUNK) + CHUNK) % CHUNK;
+    const lz = ((z % CHUNK) + CHUNK) % CHUNK;
+    const dxs = [0], dzs = [0];
+    if (lx === 0) dxs.push(-1);
+    if (lx === CHUNK - 1) dxs.push(1);
+    if (lz === 0) dzs.push(-1);
+    if (lz === CHUNK - 1) dzs.push(1);
+    for (const dx of dxs) {
+      for (const dz of dzs) this.rebuildChunk(cx + dx, cz + dz);
     }
   }
 }
