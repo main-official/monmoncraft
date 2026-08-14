@@ -146,11 +146,12 @@ class Multiplayer {
   sendBlockChange(x, y, z, id) {
     if (!this.ready) return;
     const key = `${x}_${y}_${z}`;
-    if (id === 0 || id == null) {
-      this.db.ref(`blocks/${key}`).remove();
-    } else {
-      this.db.ref(`blocks/${key}`).set(id);
-    }
+    // Always write an explicit value — including 0 for a broken block —
+    // instead of deleting the key. If we deleted it, a block that was part
+    // of the originally-generated terrain would have no override recorded
+    // in Firebase, so it would silently regenerate from the seed on the
+    // next load/reload. Firebase stores 0 as a normal value just fine.
+    this.db.ref(`blocks/${key}`).set(id == null ? 0 : id);
   }
 
   _listenBlocks() {
