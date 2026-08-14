@@ -17,9 +17,9 @@
 
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
 
-    renderer3d = new THREE.WebGLRenderer({ antialias: true });
+    renderer3d = new THREE.WebGLRenderer({ antialias: PERFORMANCE.antialias });
     renderer3d.setSize(window.innerWidth, window.innerHeight);
-    renderer3d.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer3d.setPixelRatio(Math.min(window.devicePixelRatio, PERFORMANCE.maxPixelRatio));
     document.getElementById('game-container').appendChild(renderer3d.domElement);
 
     const sun = new THREE.DirectionalLight(0xffffff, 1.05);
@@ -181,6 +181,11 @@
       lastStreamChunk = [cx, cz];
       worldRenderer.updateStreaming(controller.position.x, controller.position.z, RENDER_DISTANCE_CHUNKS);
     }
+    // Drains a few queued chunks every frame regardless of whether the
+    // player just crossed a chunk boundary — this is what turns "load 200
+    // chunks in one frame" into "load 3 chunks a frame for a couple seconds",
+    // keeping the frame rate smooth while new terrain streams in.
+    worldRenderer.processLoadQueue(PERFORMANCE.chunksPerFrame);
 
     renderer3d.render(scene, camera);
   }
