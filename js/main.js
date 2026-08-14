@@ -8,6 +8,7 @@
   let world, worldRenderer, controller;
   let multiplayer;
   let remoteAvatars = new Map(); // username -> {group, target:{x,y,z,yaw}}
+  let lastStreamChunk = null; // [cx, cz] of the chunk streaming was last computed from
 
   function init3D() {
     scene = new THREE.Scene();
@@ -136,7 +137,10 @@
     seedPromise.then((seed) => {
       world = new World(seed);
       worldRenderer = new WorldRenderer(scene, world);
-      worldRenderer.buildAllChunks();
+      // Load the chunks around the spawn point before the player can move —
+      // afterwards, chunks stream in/out around the player every frame.
+      worldRenderer.updateStreaming(0, 0, RENDER_DISTANCE_CHUNKS);
+      lastStreamChunk = [0, 0];
 
       controller = new PlayerController(camera, world, worldRenderer, renderer3d.domElement);
       controller.onBlockChange = (x, y, z, id) => multiplayer.sendBlockChange(x, y, z, id);
@@ -168,6 +172,16 @@
     updateRemoteAvatars(dt);
     updateNametags();
     multiplayer.sendPosition(controller.position.x, controller.position.y, controller.position.z, controller.yaw);
+
+    // Only recompute the load/unload set when the player has actually moved
+    // into a different chunk — this is cheap to check every frame but the
+    // load/unload work itself only needs to happen on a chunk crossing.
+    const [cx, cz] = world.chunkCoord(controller.position.x, controller.position.z);
+    if (!lastStreamChunk || cx !== lastStreamChunk[0] || cz !== lastStreamChunk[1]) {
+      lastStreamChunk = [cx, cz];
+      worldRenderer.updateStreaming(controller.position.x, controller.position.z, RENDER_DISTANCE_CHUNKS);
+    }
+
     renderer3d.render(scene, camera);
   }
 
