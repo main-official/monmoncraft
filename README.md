@@ -1,4 +1,4 @@
-# MonMonCraft — 2-Player Voxel World
+# MonMonCraft
 
 A browser-based, Minecraft-inspired voxel game for exactly two players, built to run
 as a static site on GitHub Pages:
