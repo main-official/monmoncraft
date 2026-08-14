@@ -103,7 +103,8 @@ class Multiplayer {
 
     this.username = username;
     ref.onDisconnect().remove();
-
+    this.db.ref(`players/${username}`).onDisconnect().remove();
+    
     this._startHeartbeat();
     this._listenPlayers();
     this._listenBlocks();
