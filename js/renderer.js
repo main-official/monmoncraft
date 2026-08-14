@@ -1,13 +1,15 @@
 // ---------------------------------------------------------------------------
 // Builds THREE materials from the generated pixel textures, and turns chunks
-// of voxel data into merged, face-culled BufferGeometry meshes.
+// of voxel data into merged, face-culled BufferGeometry meshes. Chunks are
+// streamed in/out around the player so the world can feel unbounded without
+// needing to build (or keep in memory/GPU) every chunk at once.
 // ---------------------------------------------------------------------------
 
 class WorldRenderer {
   constructor(scene, world) {
     this.scene = scene;
     this.world = world;
-    this.chunkMeshes = new Map(); // "cx,cz" -> {solid: THREE.Mesh, water: THREE.Mesh}
+    this.chunkMeshes = new Map(); // "cx,cz" -> {mesh}
     this._buildMaterials();
   }
 
@@ -59,15 +61,62 @@ class WorldRenderer {
     }
   }
 
-  buildAllChunks() {
-    for (let cx = 0; cx < CHUNKS_PER_SIDE; cx++) {
-      for (let cz = 0; cz < CHUNKS_PER_SIDE; cz++) {
-        this.rebuildChunk(cx, cz);
+  // --- Streaming: load/unload chunks around a world position -------------
+
+  updateStreaming(px, pz, renderDistanceChunks) {
+    const [pcx, pcz] = this.world.chunkCoord(px, pz);
+    const wanted = new Set();
+    for (let dx = -renderDistanceChunks; dx <= renderDistanceChunks; dx++) {
+      for (let dz = -renderDistanceChunks; dz <= renderDistanceChunks; dz++) {
+        if (dx * dx + dz * dz > renderDistanceChunks * renderDistanceChunks) continue; // circular, not square
+        wanted.add(`${pcx + dx},${pcz + dz}`);
       }
     }
+    // load anything wanted but not yet loaded
+    for (const key of wanted) {
+      if (this.chunkMeshes.has(key)) continue;
+      const [cx, cz] = key.split(',').map(Number);
+      this.loadChunk(cx, cz);
+    }
+    // unload anything loaded but no longer wanted (with a little hysteresis
+    // margin so chunks right at the edge don't thrash in/out every frame)
+    const margin = renderDistanceChunks + 2;
+    for (const key of [...this.chunkMeshes.keys()]) {
+      if (wanted.has(key)) continue;
+      const [cx, cz] = key.split(',').map(Number);
+      const dx = cx - pcx, dz = cz - pcz;
+      if (dx * dx + dz * dz > margin * margin) this.unloadChunk(cx, cz);
+    }
+    return [pcx, pcz];
   }
 
+  loadChunk(cx, cz) {
+    this.world.ensureTreesNear(cx, cz);
+    this._buildChunkMesh(cx, cz);
+  }
+
+  unloadChunk(cx, cz) {
+    const key = `${cx},${cz}`;
+    const existing = this.chunkMeshes.get(key);
+    if (!existing) return;
+    this.scene.remove(existing.mesh);
+    existing.mesh.geometry.dispose();
+    this.chunkMeshes.delete(key);
+    // Note: world.overrides is NOT touched here — block edits persist in
+    // memory (and in Firebase) regardless of whether the chunk is currently
+    // rendered, so unloaded chunks come back exactly as they were left.
+  }
+
+  // Rebuilds an already-loaded chunk's mesh (used after a block edit).
+  // Chunks that aren't currently streamed in are intentionally skipped —
+  // their override is already saved and will apply next time they load.
   rebuildChunk(cx, cz) {
+    const key = `${cx},${cz}`;
+    if (!this.chunkMeshes.has(key)) return;
+    this._buildChunkMesh(cx, cz);
+  }
+
+  _buildChunkMesh(cx, cz) {
     const key = `${cx},${cz}`;
     const old = this.chunkMeshes.get(key);
     if (old) { this.scene.remove(old.mesh); old.mesh.geometry.dispose(); }
@@ -106,7 +155,6 @@ class WorldRenderer {
     for (let lx = 0; lx < CHUNK; lx++) {
       for (let lz = 0; lz < CHUNK; lz++) {
         const x = x0 + lx, z = z0 + lz;
-        if (!world.inBounds(x, z)) continue;
         for (let y = MIN_HEIGHT; y < MAX_HEIGHT; y++) {
           const id = world.getBlock(x, y, z);
           if (id === BLOCK.AIR) continue;
@@ -159,17 +207,10 @@ class WorldRenderer {
 
   rebuildAround(x, z) {
     const [cx, cz] = this.world.chunkCoord(x, z);
-    const touched = new Set();
     for (let dx = -1; dx <= 1; dx++) {
       for (let dz = -1; dz <= 1; dz++) {
-        const ncx = cx + dx, ncz = cz + dz;
-        if (ncx < 0 || ncz < 0 || ncx >= CHUNKS_PER_SIDE || ncz >= CHUNKS_PER_SIDE) continue;
-        touched.add(`${ncx},${ncz}`);
+        this.rebuildChunk(cx + dx, cz + dz);
       }
-    }
-    for (const key of touched) {
-      const [ccx, ccz] = key.split(',').map(Number);
-      this.rebuildChunk(ccx, ccz);
     }
   }
 }
