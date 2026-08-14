@@ -11,7 +11,7 @@ const BLOCK = {
 
 const BIOME = { OCEAN: 0, GRASSLAND: 1, FOREST: 2, JUNGLE: 3 };
 
-const WORLD_SIZE = 128;      // blocks along X and Z[cite: 11]
+const WORLD_SIZE = 256;      // blocks along X and Z[cite: 11]
 const CHUNK = 16;            // chunk size in blocks[cite: 11]
 const CHUNKS_PER_SIDE = WORLD_SIZE / CHUNK;
 const SEA_LEVEL = 32;
